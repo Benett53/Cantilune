@@ -334,6 +334,7 @@ type fakeServer struct {
 	nextID    int
 	rng       *rand.Rand
 	kv        map[string][]byte
+	readOnly  map[string]bool // playlists whose songs cannot be replaced
 
 	// genre index, rebuilt when songs change
 	indexed int
@@ -487,6 +488,25 @@ func (f *fakeServer) call(uri string) (string, error) {
 			resp = map[string]any{"status": "failed", "error": map[string]any{"code": 70, "message": "Song not found"}}
 		}
 	case "createPlaylist":
+		// Like Navidrome: with playlistId, the songs of that playlist are replaced.
+		if id := q.Get("playlistId"); id != "" {
+			found := false
+			for _, p := range f.playlists {
+				if p.ID == id {
+					if !strings.EqualFold(p.Owner, user) || f.readOnly[id] {
+						return "", fmt.Errorf("not authorized")
+					}
+					p.songIDs = q["songId"]
+					p.Changed = nowFn()
+					resp["playlist"] = p.playlist
+					found = true
+				}
+			}
+			if !found {
+				return "", fmt.Errorf("playlist %s not found", id)
+			}
+			break
+		}
 		f.nextID++
 		p := &fakePlaylist{
 			playlist: playlist{ID: "new" + strconv.Itoa(f.nextID), Name: q.Get("name"), Owner: user, Created: nowFn()},
@@ -688,9 +708,10 @@ func TestGeneratorRun(t *testing.T) {
 		t.Fatalf("run: %v", err)
 	}
 
+	// The existing playlist keeps its ID; only its songs are replaced.
 	gym := f.byName("🎧 Gym Hardstyle ⚡")
-	if len(gym) != 1 || gym[0].ID == "old-gym" {
-		t.Fatalf("expected exactly one new gym playlist, got %+v", gym)
+	if len(gym) != 1 || gym[0].ID != "old-gym" {
+		t.Fatalf("expected the existing gym playlist to be updated, got %+v", gym)
 	}
 	if len(gym[0].songIDs) != 50 || !gym[0].public {
 		t.Errorf("gym playlist: %d songs, public=%v", len(gym[0].songIDs), gym[0].public)
@@ -714,8 +735,8 @@ func TestGeneratorRun(t *testing.T) {
 			t.Errorf("artist %s appears %d times", a, n)
 		}
 	}
-	if create, del := f.callIndex("createPlaylist?"+url.Values{"name": {"🎧 Gym Hardstyle ⚡"}}.Encode()), f.callIndex("deletePlaylist?id=old-gym"); create < 0 || del < create {
-		t.Errorf("old gym playlist must be deleted after the new one is created (create=%d, delete=%d)", create, del)
+	if f.callIndex("deletePlaylist?id=old-gym") >= 0 || f.callIndex("createPlaylist?"+url.Values{"name": {"🎧 Gym Hardstyle ⚡"}}.Encode()) >= 0 {
+		t.Error("the gym playlist must be updated in place, not deleted and created again")
 	}
 
 	driving := f.byName("🎧 Driving 80s & 90s 📼")
@@ -728,7 +749,7 @@ func TestGeneratorRun(t *testing.T) {
 		}
 	}
 
-	for _, gone := range []string{"old-gym", "old-party"} {
+	for _, gone := range []string{"old-party"} {
 		for _, p := range f.playlists {
 			if p.ID == gone {
 				t.Errorf("playlist %s should have been deleted", gone)
@@ -748,14 +769,14 @@ func TestGeneratorRun(t *testing.T) {
 		t.Errorf("unchanged playlists were regenerated: %v", f.calls)
 	}
 
-	// Preset changed: only gym is regenerated and the hardstyle playlist disappears.
+	// Preset changed: only gym is regenerated; the playlist is renamed, not replaced.
 	cfg = onlyEnabled(cat, map[string]string{"gym": "HipHop 🎤", "autoFahren": "80s & 90s 📼"})
 	f.calls = nil
 	if err := newGenerator(cat, loadSettings(mapConfig(cfg), cat), true).run(); err != nil {
 		t.Fatalf("startup run after change: %v", err)
 	}
-	if len(f.byName("🎧 Gym HipHop 🎤")) != 1 || len(f.byName("🎧 Gym Hardstyle ⚡")) != 0 {
-		t.Errorf("preset change not applied: %v", f.playlists)
+	if hiphop := f.byName("🎧 Gym HipHop 🎤"); len(hiphop) != 1 || hiphop[0].ID != "old-gym" || len(f.byName("🎧 Gym Hardstyle ⚡")) != 0 {
+		t.Errorf("preset change not applied to the same playlist: %v", f.playlists)
 	}
 	if strings.Count(strings.Join(f.calls, "\n"), "createPlaylist") != 1 {
 		t.Errorf("expected exactly one new playlist: %v", f.calls)

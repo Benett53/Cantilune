@@ -2,6 +2,16 @@
 
 All notable changes to Cantilune. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows [Semantic Versioning](https://semver.org/).
 
+## [1.4.0] – 2026-10-18
+
+### Changed
+- Playlists are now updated in place: every run replaces the songs of the existing playlist instead of creating a new playlist and deleting the old one. The playlist keeps its ID, so apps that sync playlists, such as Symfonium, no longer keep a copy of every previous day. Playlists left behind in such apps by earlier versions disappear after a full sync of the app.
+- With *Archive* enabled, the previous songs are saved as a private, dated copy; the current playlist itself is no longer renamed.
+- The summary line counts created and updated playlists separately.
+
+### Tests
+- End-to-end tests check that regenerated playlists keep their IDs and run against Navidrome 0.64.2.
+
 ## [1.3.3] – 2026-10-05
 
 ### Fixed
@@ -97,6 +107,7 @@ First public release.
 - Schedule by time of day or cron expression, with immediate update after saving
 - Option to delete all generated playlists before uninstalling
 
+[1.4.0]: https://github.com/baba537/Cantilune/releases/tag/v1.4.0
 [1.3.3]: https://github.com/baba537/Cantilune/releases/tag/v1.3.3
 [1.3.2]: https://github.com/baba537/Cantilune/releases/tag/v1.3.2
 [1.3.1]: https://github.com/baba537/Cantilune/releases/tag/v1.3.1

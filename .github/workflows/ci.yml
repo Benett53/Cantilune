@@ -98,9 +98,9 @@ jobs:
       matrix:
         include:
           - navidrome: "0.63.2"
-          - navidrome: "0.64.1"
+          - navidrome: "0.64.2"
           # install the latest release first, then update to this build
-          - navidrome: "0.64.1"
+          - navidrome: "0.64.2"
             update: true
     steps:
       - uses: actions/checkout@v7

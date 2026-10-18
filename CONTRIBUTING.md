@@ -25,7 +25,7 @@ Requirements:
 | `make fuzz` | Run every fuzz target for 15 seconds |
 | `make bench` | Benchmarks and the load profile (100,000 songs, 10 users) |
 | `make checksums` | Build `dist/cantilune.ndp` and write checksums |
-| `bash scripts/e2e.sh 0.64.1` | End-to-end test against a real Navidrome (Linux, needs `ffmpeg`, `curl`, `jq`, `python3`) |
+| `bash scripts/e2e.sh 0.64.2` | End-to-end test against a real Navidrome (Linux, needs `ffmpeg`, `curl`, `jq`, `python3`) |
 
 See [docs/testing.md](docs/testing.md) for what each test layer covers.
 

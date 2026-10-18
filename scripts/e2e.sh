@@ -238,6 +238,27 @@ if [[ -n "$PREVIOUS_NDP" ]]; then
   echo "ok: update kept the settings, playlists unique after enabling again (${update_line})"
 fi
 
+log "Regenerating: playlists keep their IDs, only the songs change"
+# Clients such as Symfonium cache playlists by ID, so a new ID every day would
+# leave old copies behind. A changed track count forces a new selection.
+playlist_ids() { api getPlaylists | jq -r '[.["subsonic-response"].playlists.playlist[]? | select(.comment // "" | contains("#cl:")) | .id] | sort | join(",")'; }
+navidrome plugin edit cantilune --config "$(jq -c '. + {trackCount: 8}' <<<"$CONFIG")"
+start_navidrome
+ids_before="$(playlist_ids)"
+runs_before="$(generation_runs)"
+wait_generation $((runs_before + 1))
+ids_after="$(playlist_ids)"
+[[ -n "$ids_before" && "$ids_before" == "$ids_after" ]] || fail "playlist IDs changed on regeneration: '$ids_before' -> '$ids_after'"
+check_all_playlists
+regeneration_line="$(last_generation_line)"
+[[ "$regeneration_line" == *" 3 updated,"* ]] || fail "expected 3 updated playlists: $regeneration_line"
+for name in "🎧 Gym Hardstyle ⚡" "🎧 Studying Classical 🎻" "🎧 Driving HipHop 🎤"; do
+  count="$(api getPlaylists | jq -r --arg n "$name" '.["subsonic-response"].playlists.playlist[] | select(.name == $n) | .songCount')"
+  [[ "$count" == "8" ]] || fail "'$name' has $count songs after regeneration, expected 8"
+done
+stop_navidrome
+echo "ok: playlists updated in place ($regeneration_line)"
+
 log "Exporting the configuration"
 navidrome plugin info cantilune --format json >"$WORK/info.json"
 grep -q "Hardstyle" "$WORK/info.json" || fail "configuration export does not contain the settings"
@@ -257,12 +278,12 @@ log "Passed"
 {
   echo "### Navidrome ${ND_VERSION}"
   echo "- Library: ${songs} songs"
-  echo "- 3 playlists generated and verified, cleanup verified"
+  echo "- 3 playlists generated and verified, regenerated in place with the same IDs, cleanup verified"
   [[ -n "$update_line" ]] && echo "- Update from the previous release verified: \`${update_line}\`"
   echo "- Time from start to finished generation: ${elapsed}s (includes the 15 s startup delay)"
   echo "- Slowest ping during generation: ${max_ping_ms} ms"
   echo "- Plugin log: \`${generation_line}\`"
 } | tee -a "$SUMMARY"
 if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
-  echo "::notice title=E2E Navidrome ${ND_VERSION} passed::${songs} songs, 3 playlists verified${update_line:+, update from previous release verified}, cleanup verified, slowest ping ${max_ping_ms} ms. ${generation_line}"
+  echo "::notice title=E2E Navidrome ${ND_VERSION} passed::${songs} songs, 3 playlists verified, IDs kept on regeneration${update_line:+, update from previous release verified}, cleanup verified, slowest ping ${max_ping_ms} ms. ${regeneration_line}"
 fi

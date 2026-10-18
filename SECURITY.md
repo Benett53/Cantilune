@@ -92,8 +92,8 @@ gh attestation verify cantilune.ndp -R baba537/Cantilune
 **Rebuild from source:** the build is reproducible with the pinned toolchain on Linux x86-64. CI builds every commit twice from a clean cache and compares the checksums.
 
 ```bash
-git checkout v1.3.3
-make checksums VERSION=1.3.3 WEBSITE=https://github.com/baba537/Cantilune
+git checkout v1.4.0
+make checksums VERSION=1.4.0 WEBSITE=https://github.com/baba537/Cantilune
 ```
 
 Use the Go version named in the attestation (the latest Go 1.26 patch release at release time), TinyGo 0.42.0 and Binaryen version 132. `dist/plugin.wasm` and `dist/cantilune.ndp` then match the checksums in `SHA256SUMS`. The package is written by `cmd/buildndp` with fixed entry order and dates, so it does not depend on the installed `zip`.

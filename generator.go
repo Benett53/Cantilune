@@ -115,7 +115,7 @@ func (g *generator) run() error {
 		g.modeLabel(), len(ready), countManaged(idx.managed))
 
 	// empty: no matching songs; the previous playlist is kept, which is not an error.
-	created, unchanged, previewed, empty := 0, 0, 0, 0
+	created, updated, unchanged, previewed, empty := 0, 0, 0, 0, 0
 	for _, j := range ready {
 		existing := idx.forOwner(j.ID, j.User)
 		if g.startup && !g.cfg.DryRun && isUpToDate(existing, j) {
@@ -157,24 +157,22 @@ func (g *generator) run() error {
 			continue
 		}
 
-		id, err := createPlaylist(j.User, j.Name, ids)
+		id, replaced, err := g.writePlaylist(j, existing, ids)
 		if err != nil {
 			logf(pdk.LogError, "could not create %s: %v", j.Name, err)
 			failed++
 			continue
 		}
-		if err := updatePlaylistMeta(j.User, id, j.Public, playlistComment(j, g.cfg.Language)); err != nil {
-			logf(pdk.LogWarn, "%s: could not set visibility or comment: %v", j.Name, err)
-		}
-		// The new playlist exists, so retire the previous version right away.
-		for _, old := range existing {
-			if old.ID != id {
-				g.retire(old)
-			}
+		if err := updatePlaylistMeta(j.User, id, j.Name, j.Public, playlistComment(j, g.cfg.Language)); err != nil {
+			logf(pdk.LogWarn, "%s: could not set name, visibility or comment: %v", j.Name, err)
 		}
 		g.saveHistory(j.ID, j.User, ids)
 		g.saveGenerated(j.ID, j.User, id, ids)
-		created++
+		if replaced {
+			updated++
+		} else {
+			created++
+		}
 		logf(pdk.LogInfo, "%s for %s: %s", j.Name, j.User, st.summary(len(ids)))
 		g.logDetails(j, st)
 	}
@@ -187,9 +185,9 @@ func (g *generator) run() error {
 	removed := g.deleteOldPlaylists(idx, keepSituation, keepOwner)
 	expired := g.expireArchives(idx.archived)
 
-	logf(pdk.LogInfo, "generation finished: %d created, %d unchanged, %d without matching songs, %d removed, %d archives expired, %d failed in %s",
-		created, unchanged, empty, removed, expired, failed, elapsed(start))
-	if created == 0 && failed > 0 {
+	logf(pdk.LogInfo, "generation finished: %d created, %d updated, %d unchanged, %d without matching songs, %d removed, %d archives expired, %d failed in %s",
+		created, updated, unchanged, empty, removed, expired, failed, elapsed(start))
+	if created+updated == 0 && failed > 0 {
 		return fmt.Errorf("no playlist created, %d errors (see log)", failed)
 	}
 	return nil
@@ -303,19 +301,111 @@ func (g *generator) deleteOldPlaylists(idx playlistIndex, keepSituation, keepOwn
 	return removed
 }
 
+// writePlaylist puts the new songs into the playlist of the job. If the
+// playlist exists, its songs are replaced in place, so it keeps its ID: clients
+// that cache playlists by ID (for example Symfonium) would otherwise keep every
+// day's playlist as a separate entry. The previous songs are copied into an
+// archive first if archiving is enabled. Duplicates are retired. Only if the
+// playlist cannot be updated is a new one created and the old one retired.
+// replaced reports whether an existing playlist was updated.
+func (g *generator) writePlaylist(j Job, existing []managedPlaylist, ids []string) (id string, replaced bool, err error) {
+	if len(existing) > 0 {
+		keep := newestPlaylist(existing)
+		var previous []string
+		if g.cfg.ArchiveDays > 0 {
+			previous, err = fetchPlaylistSongIDs(g.ownerFor(keep.Owner), keep.ID)
+			if err != nil {
+				logf(pdk.LogWarn, "%s: could not read the previous songs for the archive: %v", j.Name, err)
+			}
+		}
+		replaceErr := replacePlaylistSongs(j.User, keep.ID, ids)
+		if replaceErr == nil {
+			if len(previous) > 0 {
+				g.archiveCopy(keep, previous)
+			}
+			for _, old := range existing {
+				if old.ID != keep.ID {
+					g.retire(old)
+				}
+			}
+			return keep.ID, true, nil
+		}
+		logf(pdk.LogWarn, "%s: could not update the existing playlist, creating a new one: %v", j.Name, replaceErr)
+	}
+
+	id, err = createPlaylist(j.User, j.Name, ids)
+	if err != nil {
+		return "", false, err
+	}
+	// The new playlist exists, so retire the previous versions right away.
+	for _, old := range existing {
+		if old.ID != id {
+			g.retire(old)
+		}
+	}
+	return id, false, nil
+}
+
+// newestPlaylist returns the most recently changed playlist.
+func newestPlaylist(lists []managedPlaylist) managedPlaylist {
+	newest := lists[0]
+	for _, pl := range lists[1:] {
+		if lastChange(pl.playlist).After(lastChange(newest.playlist)) {
+			newest = pl
+		}
+	}
+	return newest
+}
+
+// lastChange is the time the songs of a playlist were last written.
+func lastChange(pl playlist) time.Time {
+	if pl.Changed.After(pl.Created) {
+		return pl.Changed
+	}
+	return pl.Created
+}
+
+// archiveName and archiveComment describe the archive of a playlist whose songs
+// date from the given day.
+func archiveName(name string, date time.Time) string {
+	return fmt.Sprintf("%s (%s)", name, date.Format(dateLayout))
+}
+
+func archiveComment(situationID string, date time.Time) string {
+	return "Archived by Cantilune · " + archivePrefix + situationID + ":" + date.Format(dateLayout)
+}
+
+// archiveDate is the day the songs of a playlist were generated.
+func archiveDate(pl playlist) time.Time {
+	date := lastChange(pl).UTC()
+	if date.IsZero() {
+		date = nowFn().UTC()
+	}
+	return date
+}
+
+// archiveCopy keeps the previous songs of a playlist that was updated in place
+// as a private, dated copy.
+func (g *generator) archiveCopy(old managedPlaylist, songIDs []string) {
+	owner := g.ownerFor(old.Owner)
+	date := archiveDate(old.playlist)
+	id, err := createPlaylist(owner, archiveName(old.Name, date), songIDs)
+	if err == nil {
+		err = updatePlaylistMeta(owner, id, archiveName(old.Name, date), false, archiveComment(old.situationID, date))
+	}
+	if err != nil {
+		logf(pdk.LogWarn, "could not archive %q: %v", old.Name, err)
+	}
+}
+
 // retire archives or deletes a replaced playlist.
 func (g *generator) retire(old managedPlaylist) {
 	if g.cfg.ArchiveDays <= 0 {
 		g.deleteManaged(old.playlist)
 		return
 	}
-	date := old.Created.UTC()
-	if date.IsZero() {
-		date = nowFn().UTC()
-	}
-	name := fmt.Sprintf("%s (%s)", old.Name, date.Format(dateLayout))
-	comment := "Archived by Cantilune · " + archivePrefix + old.situationID + ":" + date.Format(dateLayout)
-	if err := archivePlaylist(g.ownerFor(old.Owner), old.ID, name, comment); err != nil {
+	date := archiveDate(old.playlist)
+	if err := archivePlaylist(g.ownerFor(old.Owner), old.ID, archiveName(old.Name, date), archiveComment(old.situationID, date)); err != nil {
 		logf(pdk.LogWarn, "could not archive %q: %v", old.Name, err)
 	}
 }
@@ -383,7 +473,7 @@ func isUpToDate(existing []managedPlaylist, j Job) bool {
 	return pl.fingerprint == j.Fingerprint &&
 		pl.Name == j.Name &&
 		equalFold(pl.Owner, j.User) &&
-		nowFn().Sub(pl.Created) < freshFor
+		nowFn().Sub(lastChange(pl.playlist)) < freshFor
 }
 
 func playlistComment(j Job, language string) string {

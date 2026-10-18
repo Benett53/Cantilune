@@ -47,7 +47,7 @@ The name combines *canticle* (song) and *lune* (French for moon).
 ## Features
 
 - 30 situations in six categories, each with several presets
-- One playlist per situation, replaced every day; replaced playlists can be kept as archive
+- One playlist per situation with new songs every day; it keeps its ID, so apps that sync playlists (e.g. Symfonium) show one entry, not one per day; previous songs can be kept as archive
 - One shared playlist for everybody, or a private playlist for every user based on that user's own listening data
 - Four selection modes: Balanced, Favorites, Discover, Recently added
 - Weighted selection based on genre, BPM, ReplayGain, mood, rating and listening history, with adjustable weights
@@ -62,7 +62,7 @@ The name combines *canticle* (song) and *lune* (French for moon).
 
 ## Requirements
 
-- Navidrome with plugin support (`.ndp` packages). Tested end-to-end in CI with **Navidrome 0.63.2 and 0.64.1**, including the update from the previous Cantilune release; older versions are not tested.
+- Navidrome with plugin support (`.ndp` packages). Tested end-to-end in CI with **Navidrome 0.63.2 and 0.64.2**, including the update from the previous Cantilune release; older versions are not tested.
 - Plugins enabled in the Navidrome configuration
 
 ## Installation
@@ -170,7 +170,7 @@ Additional playlists can be added under *Custom situations*. Available fields: n
 
 | Setting | Default | Description |
 |---|---|---|
-| Archive | 0 days | Keeps replaced playlists as private copies with the date in the name for this many days; 0 deletes them immediately |
+| Archive | 0 days | Keeps the previous songs of each playlist as a private copy with the date in the name for this many days; 0 keeps no copies |
 | Delete all Cantilune playlists and pause the plugin | off | Use before uninstalling, see [Uninstalling](#uninstalling) |
 
 ## Situations and presets
@@ -355,10 +355,10 @@ Without `make`:
 
 ```bash
 tinygo build -no-debug -o dist/plugin.wasm -target wasip1 -buildmode=c-shared .
-go run ./cmd/buildndp -version 1.3.3
+go run ./cmd/buildndp -version 1.4.0
 ```
 
-CI runs all of these, `govulncheck`, CodeQL, a reproducible-build check and end-to-end tests against Navidrome 0.63.2 and 0.64.1. Details: [docs/testing.md](docs/testing.md).
+CI runs all of these, `govulncheck`, CodeQL, a reproducible-build check and end-to-end tests against Navidrome 0.63.2 and 0.64.2. Details: [docs/testing.md](docs/testing.md).
 
 ### Adding presets
 
@@ -394,8 +394,8 @@ Presets are stored in the settings by their display name. If a preset is renamed
 Pushing a tag in the format `v*` starts the [release workflow](.github/workflows/release.yml). It runs the complete CI first, then builds the plugin, takes the version from the tag and attaches `cantilune.ndp`, `SHA256SUMS` and an SPDX SBOM to the release together with a signed build provenance attestation.
 
 ```bash
-git tag -a v1.3.3 -m "Cantilune 1.3.3"
-git push origin v1.3.3
+git tag -a v1.4.0 -m "Cantilune 1.4.0"
+git push origin v1.4.0
 ```
 
 Changes between versions are listed in the [changelog](CHANGELOG.md).

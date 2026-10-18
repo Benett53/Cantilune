@@ -108,7 +108,8 @@ func TestArchiveKeepsReplacedPlaylists(t *testing.T) {
 	f := newFakeServer()
 	f.addSongs("Hardstyle", 120, nil)
 	f.playlists = []*fakePlaylist{
-		{playlist: playlist{ID: "old", Name: "🎧 Gym Hardstyle ⚡", Owner: "admin", Comment: "#cl:gym:0000000a", Created: testNow.Add(-24 * time.Hour)}, public: true},
+		{playlist: playlist{ID: "old", Name: "🎧 Gym Hardstyle ⚡", Owner: "admin", Comment: "#cl:gym:0000000a", Created: testNow.Add(-24 * time.Hour)}, public: true,
+			songIDs: []string{"hardstyle-1", "hardstyle-2"}},
 		{playlist: playlist{ID: "archive-recent", Name: "🎧 Gym Hardstyle ⚡ (2026-09-12)", Owner: "admin", Comment: "Archived by Cantilune · #cla:gym:2026-09-12"}},
 		{playlist: playlist{ID: "archive-expired", Name: "🎧 Gym Hardstyle ⚡ (2026-09-01)", Owner: "admin", Comment: "Archived by Cantilune · #cla:gym:2026-09-01"}},
 	}
@@ -119,13 +120,15 @@ func TestArchiveKeepsReplacedPlaylists(t *testing.T) {
 	if err := newGenerator(cat, loadSettings(mapConfig(cfg), cat), false).run(); err != nil {
 		t.Fatal(err)
 	}
+	// The playlist keeps its ID and gets new songs; the previous songs are kept as a private copy.
 	current := f.byName("🎧 Gym Hardstyle ⚡")
-	if len(current) != 1 || current[0].ID == "old" || !current[0].public {
-		t.Fatalf("expected one new public playlist, got %+v", current)
+	if len(current) != 1 || current[0].ID != "old" || !current[0].public || len(current[0].songIDs) != 50 {
+		t.Fatalf("expected the existing public playlist with new songs, got %+v", current)
 	}
 	archived := f.byName("🎧 Gym Hardstyle ⚡ (2026-09-13)")
-	if len(archived) != 1 || archived[0].ID != "old" || archived[0].public || !strings.Contains(archived[0].Comment, "#cla:gym:2026-09-13") {
-		t.Errorf("replaced playlist was not archived: %+v", archived)
+	if len(archived) != 1 || archived[0].public || !strings.Contains(archived[0].Comment, "#cla:gym:2026-09-13") ||
+		strings.Join(archived[0].songIDs, ",") != "hardstyle-1,hardstyle-2" {
+		t.Errorf("previous songs were not archived: %+v", archived)
 	}
 	if len(f.byName("🎧 Gym Hardstyle ⚡ (2026-09-12)")) != 1 {
 		t.Error("archive within the archive period was deleted")
@@ -467,5 +470,79 @@ func TestQualityMetrics(t *testing.T) {
 	}
 	if empty := measureQuality(nil, catalog.Recipe{}, songContext{}); empty.ExactGenre != -1 {
 		t.Errorf("empty playlist metrics: %+v", empty)
+	}
+}
+
+// Clients such as Symfonium cache playlists by ID. Daily runs must therefore
+// keep the ID of a playlist and replace only its songs.
+func TestDailyRunsKeepPlaylistID(t *testing.T) {
+	cat := mustCatalog(t)
+	f := newFakeServer()
+	f.addSongs("Hardstyle", 200, func(i int, s *song) { s.Artist = fmt.Sprintf("Artist %d", i) })
+	useFake(t, f)
+	defer func() { nowFn = func() time.Time { return testNow } }()
+
+	cfg := onlyEnabled(cat, map[string]string{"gym": "Hardstyle ⚡"})
+	var firstID string
+	var previous []string
+	for day := 0; day < 3; day++ {
+		nowFn = func() time.Time { return testNow.Add(time.Duration(day) * 24 * time.Hour) }
+		if err := newGenerator(cat, loadSettings(mapConfig(cfg), cat), false).run(); err != nil {
+			t.Fatal(err)
+		}
+		lists := f.byName("🎧 Gym Hardstyle ⚡")
+		if len(lists) != 1 {
+			t.Fatalf("day %d: expected one playlist, got %d", day, len(lists))
+		}
+		if day == 0 {
+			firstID = lists[0].ID
+		} else if lists[0].ID != firstID {
+			t.Fatalf("day %d: playlist ID changed from %s to %s", day, firstID, lists[0].ID)
+		}
+		if strings.Join(lists[0].songIDs, ",") == strings.Join(previous, ",") {
+			t.Errorf("day %d: songs were not replaced", day)
+		}
+		previous = append([]string(nil), lists[0].songIDs...)
+	}
+	if n := countCalls(f, "deletePlaylist"); n != 0 {
+		t.Errorf("%d playlists deleted during daily runs", n)
+	}
+}
+
+func TestDuplicatePlaylistsAreMerged(t *testing.T) {
+	cat := mustCatalog(t)
+	f := newFakeServer()
+	f.addSongs("Hardstyle", 100, nil)
+	f.playlists = []*fakePlaylist{
+		{playlist: playlist{ID: "older", Name: "🎧 Gym Hardstyle ⚡", Owner: "admin", Comment: "#cl:gym:00000001", Created: testNow.Add(-72 * time.Hour)}},
+		{playlist: playlist{ID: "newer", Name: "🎧 Gym Hardstyle ⚡", Owner: "admin", Comment: "#cl:gym:00000002", Created: testNow.Add(-48 * time.Hour)}},
+	}
+	useFake(t, f)
+	cfg := onlyEnabled(cat, map[string]string{"gym": "Hardstyle ⚡"})
+	if err := newGenerator(cat, loadSettings(mapConfig(cfg), cat), false).run(); err != nil {
+		t.Fatal(err)
+	}
+	lists := f.byName("🎧 Gym Hardstyle ⚡")
+	if len(lists) != 1 || lists[0].ID != "newer" {
+		t.Errorf("expected only the newest playlist to remain, got %+v", lists)
+	}
+}
+
+func TestReadOnlyPlaylistIsReplacedByNewOne(t *testing.T) {
+	cat := mustCatalog(t)
+	f := newFakeServer()
+	f.addSongs("Hardstyle", 100, nil)
+	f.playlists = []*fakePlaylist{
+		{playlist: playlist{ID: "locked", Name: "🎧 Gym Hardstyle ⚡", Owner: "admin", Comment: "#cl:gym:00000001", Created: testNow.Add(-48 * time.Hour)}},
+	}
+	f.readOnly = map[string]bool{"locked": true}
+	useFake(t, f)
+	cfg := onlyEnabled(cat, map[string]string{"gym": "Hardstyle ⚡"})
+	if err := newGenerator(cat, loadSettings(mapConfig(cfg), cat), false).run(); err != nil {
+		t.Fatal(err)
+	}
+	lists := f.byName("🎧 Gym Hardstyle ⚡")
+	if len(lists) != 1 || lists[0].ID == "locked" || len(lists[0].songIDs) != 50 {
+		t.Errorf("expected a new playlist replacing the read-only one, got %+v", lists)
 	}
 }

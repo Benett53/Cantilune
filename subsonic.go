@@ -47,6 +47,7 @@ type playlist struct {
 	Owner     string    `json:"owner"`
 	SongCount int       `json:"songCount"`
 	Created   time.Time `json:"created"`
+	Changed   time.Time `json:"changed"`
 	Entry     []song    `json:"entry"`
 }
 
@@ -198,9 +199,23 @@ func createPlaylist(user, name string, songIDs []string) (string, error) {
 	return newest.ID, nil
 }
 
-func updatePlaylistMeta(user, id string, public bool, comment string) error {
+// replacePlaylistSongs replaces all songs of an existing playlist. The playlist
+// keeps its ID, so clients that cache playlists by ID see an updated playlist
+// instead of a new one.
+func replacePlaylistSongs(user, id string, songIDs []string) error {
 	q := url.Values{}
 	q.Set("playlistId", id)
+	for _, songID := range songIDs {
+		q.Add("songId", songID)
+	}
+	_, err := callAPI(user, "createPlaylist", q)
+	return err
+}
+
+func updatePlaylistMeta(user, id, name string, public bool, comment string) error {
+	q := url.Values{}
+	q.Set("playlistId", id)
+	q.Set("name", name)
 	q.Set("public", strconv.FormatBool(public))
 	q.Set("comment", comment)
 	_, err := callAPI(user, "updatePlaylist", q)
