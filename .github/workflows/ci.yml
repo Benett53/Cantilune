@@ -23,6 +23,7 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version: "1.26.x"
+          check-latest: true
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
@@ -43,6 +44,7 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version: "1.26.x"
+          check-latest: true
       - name: go.mod and go.sum are tidy
         run: go mod tidy -diff
       - name: manifest.json matches catalog/presets.json
@@ -68,6 +70,7 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version: "1.26.x"
+          check-latest: true
       - uses: acifani/setup-tinygo@v3
         with:
           tinygo-version: ${{ env.TINYGO_VERSION }}
