@@ -4,8 +4,8 @@ Bug reports, suggestions and pull requests are welcome. By participating you agr
 
 ## Reporting bugs and suggesting presets
 
-- **Bugs:** use the [bug report form](https://github.com/baba537/Cantilune/issues/new?template=bug_report.yml). The log lines starting with `🎧` from the Navidrome log help most. Enable *Log why each song was chosen* for details.
-- **Presets and situations:** use the [suggestion form](https://github.com/baba537/Cantilune/issues/new?template=feature_request.yml) and list genres as they appear in real libraries.
+- **Bugs:** use the [bug report form](https://github.com/Benett53/Cantilune/issues/new?template=bug_report.yml). The log lines starting with `🎧` from the Navidrome log help most. Enable *Log why each song was chosen* for details.
+- **Presets and situations:** use the [suggestion form](https://github.com/Benett53/Cantilune/issues/new?template=feature_request.yml) and list genres as they appear in real libraries.
 - **Security problems:** do not open an issue; see [SECURITY.md](SECURITY.md).
 
 ## Development setup

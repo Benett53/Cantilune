@@ -9,7 +9,7 @@ import (
 const (
 	PluginName        = "Cantilune"
 	PluginAuthor      = "Cantilune contributors"
-	PluginWebsite     = "https://github.com/baba537/Cantilune"
+	PluginWebsite     = "https://github.com/Benett53/Cantilune"
 	PluginDescription = "Creates daily playlists for 30 everyday situations (gym, driving, cooking, studying, sleep …) with selectable presets and a song selection based on genre, BPM, ReplayGain, favorites, ratings and listening history."
 )
 

@@ -9,8 +9,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/baba537/Cantilune/releases/latest"><img src="https://img.shields.io/github/v/release/baba537/Cantilune" alt="Release"></a>
-  <a href="https://github.com/baba537/Cantilune/actions/workflows/ci.yml"><img src="https://github.com/baba537/Cantilune/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/Benett53/Cantilune/releases/latest"><img src="https://img.shields.io/github/v/release/Benett53/Cantilune" alt="Release"></a>
+  <a href="https://github.com/Benett53/Cantilune/actions/workflows/ci.yml"><img src="https://github.com/Benett53/Cantilune/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue" alt="License: GPL-3.0"></a>
 </p>
 
@@ -42,7 +42,6 @@ The name combines *canticle* (song) and *lune* (French for moon).
 - [Development](#development)
 - [Project status](#project-status)
 - [License](#license)
-- [AI assistance](#ai-assistance)
 
 ## Features
 
@@ -67,7 +66,7 @@ The name combines *canticle* (song) and *lune* (French for moon).
 
 ## Installation
 
-1. Download `cantilune.ndp` from the [latest release](https://github.com/baba537/Cantilune/releases/latest). To verify the download, see [Verifying a release](SECURITY.md#verifying-a-release).
+1. Download `cantilune.ndp` from the [latest release](https://github.com/Benett53/Cantilune/releases/latest). To verify the download, see [Verifying a release](SECURITY.md#verifying-a-release).
 
 2. Copy the file into Navidrome's plugin folder. When updating, replace the existing file. Settings and user access are kept, but Navidrome disables a plugin whose file has changed, so enable Cantilune again after the update (step 4).
 
@@ -408,8 +407,4 @@ Cantilune is maintained in free time. Bug reports, preset suggestions and pull r
 
 Cantilune is licensed under the [GPL-3.0](LICENSE). The Navidrome Plugin Development Kit, which is compiled into `plugin.wasm`, is also licensed under the GPL-3.0.
 
-The logo was created with ChatGPT.
-
-## AI assistance
-
-Parts of this project were created with AI assistance (Claude Opus 5). The code is covered by automated tests but may still contain bugs; please report problems as an [issue](https://github.com/baba537/Cantilune/issues).
+Parts of this project were created with AI assistance.
